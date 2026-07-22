@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>나의 할 일 목록</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="app-header">
+    <h1 class="app-title">📝 나의 할 일 목록</h1>
+    <p class="today-date" id="todayDate">2026년 7월 22일 수요일</p>
+  </header>
+
+  <section class="progress-section">
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill" id="progressFill" style="width: 0%;"></div>
+    </div>
+    <p class="progress-text" id="progressText" aria-live="polite">0/0 완료</p>
+  </section>
+
+  <section class="input-section">
+    <input
+      type="text"
+      id="todoInput"
+      class="todo-input"
+      placeholder="할 일을 입력하세요"
+    >
+    <select id="categorySelect" class="category-select">
+      <option value="personal">개인</option>
+      <option value="study">공부</option>
+      <option value="work">업무</option>
+      <option value="hobby">취미</option>
+    </select>
+    <button type="button" id="addBtn" class="add-btn">추가</button>
+  </section>
+
+  <nav class="filter-tabs" id="filterTabs">
+    <button type="button" class="filter-tab active" data-filter="all">전체</button>
+    <button type="button" class="filter-tab" data-filter="personal">개인</button>
+    <button type="button" class="filter-tab" data-filter="study">공부</button>
+    <button type="button" class="filter-tab" data-filter="work">업무</button>
+    <button type="button" class="filter-tab" data-filter="hobby">취미</button>
+  </nav>
+
+  <main class="todo-list-section">
+    <ul class="todo-list" id="todoList">
+      <!-- 할 일 항목이 이곳에 렌더링됩니다 -->
+    </ul>
+    <div class="empty-state" id="emptyState">
+      <p class="empty-state-icon">🗒️</p>
+      <p class="empty-state-text" id="emptyStateText">할 일이 없습니다</p>
+    </div>
+  </main>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
