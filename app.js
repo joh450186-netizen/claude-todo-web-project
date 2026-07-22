@@ -1,6 +1,12 @@
 // ==========================================================
-// Todo List 앱 — 추가/수정/삭제/완료토글/카테고리필터/진행률/localStorage 저장
+// Todo List 앱 — 추가/수정/삭제/완료토글/카테고리필터/진행률/Supabase 저장
 // ==========================================================
+
+const SUPABASE_URL = 'https://ocrxrmswtyhogtqtoqec.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jcnhybXN3dHlob2d0cXRvcWVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2ODM0NTUsImV4cCI6MjEwMDI1OTQ1NX0.gS4yrkM0JKL3q1BmWXUBGMA2CS6W7gTkgMZlVjoi264';
+const TABLE_NAME = 'todo_tbl';
+
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const CATEGORY_LABELS = {
   personal: '개인',
@@ -9,10 +15,7 @@ const CATEGORY_LABELS = {
   hobby: '취미',
 };
 
-const STORAGE_KEY = 'todo-app-data';
-
 let todos = [];
-let nextId = 1;
 let editingId = null;
 let currentFilter = 'all';
 
@@ -20,7 +23,7 @@ let todoInput, categorySelect, addBtn, todoListEl, emptyStateEl, emptyStateTextE
 
 document.addEventListener('DOMContentLoaded', init);
 
-function init() {
+async function init() {
   todoInput = document.getElementById('todoInput');
   categorySelect = document.getElementById('categorySelect');
   addBtn = document.getElementById('addBtn');
@@ -31,10 +34,9 @@ function init() {
   progressTextEl = document.getElementById('progressText');
   filterTabsEl = document.getElementById('filterTabs');
 
-  todos = loadTodos();
-  nextId = todos.reduce((max, t) => Math.max(max, Number(t.id) || 0), 0) + 1;
-
   renderTodayDate();
+
+  todos = await loadTodos();
   render();
 
   addBtn.addEventListener('click', handleAdd);
@@ -61,67 +63,89 @@ function renderTodayDate() {
 }
 
 // ----------------------------------------------------------
-// localStorage 연동
+// Supabase 연동
 // ----------------------------------------------------------
 
-function loadTodos() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-
-    const parsed = JSON.parse(raw);
-    if (parsed && Array.isArray(parsed.todos)) {
-      return parsed.todos;
-    }
-    return [];
-  } catch (err) {
-    console.error('할 일 데이터를 불러오는 중 오류가 발생했습니다:', err);
-    return [];
-  }
+function mapRow(row) {
+  return {
+    id: row.id,
+    text: row.text,
+    category: row.category,
+    completed: row.completed,
+    createdAt: row.created_at,
+  };
 }
 
-function saveTodos() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ todos }));
-  } catch (err) {
-    console.error('할 일 데이터를 저장하는 중 오류가 발생했습니다:', err);
+async function loadTodos() {
+  const { data, error } = await supabaseClient
+    .from(TABLE_NAME)
+    .select('*')
+    .order('id', { ascending: true });
+
+  if (error) {
+    console.error('할 일 데이터를 불러오는 중 오류가 발생했습니다:', error);
+    return [];
   }
+  return data.map(mapRow);
 }
 
 // ----------------------------------------------------------
 // 상태 변경 함수
 // ----------------------------------------------------------
 
-function handleAdd() {
+async function handleAdd() {
   const text = todoInput.value.trim();
   if (!text) {
     todoInput.focus();
     return;
   }
+  const category = categorySelect.value;
 
-  todos.push({
-    id: nextId++,
-    text,
-    category: categorySelect.value,
-    completed: false,
-    createdAt: new Date().toISOString(),
-  });
+  const { data, error } = await supabaseClient
+    .from(TABLE_NAME)
+    .insert({ text, category, completed: false })
+    .select()
+    .single();
 
+  if (error) {
+    console.error('할 일을 추가하는 중 오류가 발생했습니다:', error);
+    return;
+  }
+
+  todos.push(mapRow(data));
   todoInput.value = '';
   todoInput.focus();
   render();
 }
 
-function deleteTodo(id) {
+async function deleteTodo(id) {
+  const { error } = await supabaseClient.from(TABLE_NAME).delete().eq('id', id);
+  if (error) {
+    console.error('할 일을 삭제하는 중 오류가 발생했습니다:', error);
+    return;
+  }
+
   todos = todos.filter((t) => t.id !== id);
   if (editingId === id) editingId = null;
   render();
 }
 
-function toggleComplete(id) {
+async function toggleComplete(id) {
   const todo = todos.find((t) => t.id === id);
   if (!todo) return;
-  todo.completed = !todo.completed;
+
+  const completed = !todo.completed;
+  const { error } = await supabaseClient
+    .from(TABLE_NAME)
+    .update({ completed })
+    .eq('id', id);
+
+  if (error) {
+    console.error('완료 상태를 변경하는 중 오류가 발생했습니다:', error);
+    return;
+  }
+
+  todo.completed = completed;
   render();
 }
 
@@ -141,7 +165,7 @@ function cancelEdit() {
   render();
 }
 
-function saveEdit(li, id) {
+async function saveEdit(li, id) {
   const input = li.querySelector('.todo-edit-input');
   const select = li.querySelector('.todo-edit-category');
   const text = input.value.trim();
@@ -150,12 +174,23 @@ function saveEdit(li, id) {
     input.focus();
     return;
   }
+  const category = select.value;
+
+  const { error } = await supabaseClient
+    .from(TABLE_NAME)
+    .update({ text, category })
+    .eq('id', id);
+
+  if (error) {
+    console.error('할 일을 수정하는 중 오류가 발생했습니다:', error);
+    return;
+  }
 
   const todo = todos.find((t) => t.id === id);
   if (!todo) return;
 
   todo.text = text;
-  todo.category = select.value;
+  todo.category = category;
   editingId = null;
   render();
 }
@@ -223,7 +258,6 @@ function handleListKeydown(e) {
 // ----------------------------------------------------------
 
 function render() {
-  saveTodos();
   renderProgress();
   renderList();
 }
